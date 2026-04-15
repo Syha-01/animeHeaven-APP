@@ -146,19 +146,19 @@ export interface ActorDetails {
 // Schedule
 export interface ScheduleItem {
     title: string;
-    alternativeTitle: string;
+    alternativeTitle: string | null;
     id: string;
-    time: string;
-    episode: number;
+    poster: string;
+    status: string | null;
+    latestEpisode: number | null;
 }
 
 export interface ScheduleResponse {
-    meta: {
-        date: string;
-        currentDate: string;
-        lastDate: string;
-    };
-    response: ScheduleItem[];
+    banner: ScheduleItem[];
+    popular: ScheduleItem[];
+    released: ScheduleItem[];
+    upcoming: ScheduleItem[];
+    finished: ScheduleItem[];
 }
 
 // Suggestion

@@ -110,7 +110,7 @@ export default function SearchScreen() {
                     {item.title}
                 </Text>
                 <Text style={styles.suggestionMeta} numberOfLines={1}>
-                    {item.type} {item.aired && `• ${item.aired}`}
+                    Anime
                 </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.textTertiary} />

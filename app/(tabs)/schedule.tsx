@@ -3,9 +3,9 @@ import { useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     FlatList,
+    Image,
     Pressable,
     RefreshControl,
-    ScrollView,
     StyleSheet,
     Text,
     View,
@@ -16,47 +16,35 @@ import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { SetupRequired } from '../../components/SetupRequired';
 import { useUser } from '../../context/UserContext';
 import { borderRadius, colors, spacing, typography } from '../../theme';
-import type { ScheduleItem } from '../../types';
+import type { ScheduleItem, ScheduleResponse } from '../../types';
 
-// Generate dates for the date picker
-const generateDates = () => {
-    const dates = [];
-    const today = new Date();
+type CategoryType = 'released' | 'upcoming' | 'finished';
 
-    for (let i = -3; i <= 7; i++) {
-        const date = new Date(today);
-        date.setDate(today.getDate() + i);
-        dates.push({
-            date: date.getDate(),
-            day: date.toLocaleDateString('en-US', { weekday: 'short' }),
-            month: date.toLocaleDateString('en-US', { month: 'short' }),
-            fullDate: date,
-            isToday: i === 0,
-        });
-    }
-    return dates;
-};
+const CATEGORIES: { id: CategoryType; label: string }[] = [
+    { id: 'released', label: 'Released' },
+    { id: 'upcoming', label: 'Upcoming' },
+    { id: 'finished', label: 'Finished' },
+];
 
 export default function ScheduleScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
-    const { baseUrl, isValidConnection} = useUser();
+    const { baseUrl, isValidConnection } = useUser();
     const client = apiClient;
-    const [dates] = useState(generateDates());
-    const [selectedDate, setSelectedDate] = useState(dates.find(d => d.isToday)!);
-    const [scheduleData, setScheduleData] = useState<ScheduleItem[]>([]);
+
+    const [scheduleData, setScheduleData] = useState<ScheduleResponse | null>(null);
+    const [selectedCategory, setSelectedCategory] = useState<CategoryType>('released');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
-    const fetchSchedule = useCallback(async (date: Date) => {
+    const fetchSchedule = useCallback(async () => {
         try {
             setLoading(true);
-            const dateStr = date.getDate().toString();
-            const response = await client.getSchedule(dateStr);
-            setScheduleData(response.response || []);
+            const response = await client.getSchedule();
+            setScheduleData(response);
         } catch (err) {
             console.error('Failed to fetch schedule:', err);
-            setScheduleData([]);
+            setScheduleData(null);
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -64,32 +52,30 @@ export default function ScheduleScreen() {
     }, [client]);
 
     useEffect(() => {
-        fetchSchedule(selectedDate.fullDate);
-    }, [selectedDate, fetchSchedule]);
+        fetchSchedule();
+    }, [fetchSchedule]);
 
     const onRefresh = () => {
         setRefreshing(true);
-        fetchSchedule(selectedDate.fullDate);
-    };
-
-    const handleDatePress = (date: typeof dates[0]) => {
-        setSelectedDate(date);
+        fetchSchedule();
     };
 
     const handleAnimePress = (id: string) => {
         router.push(`/anime/${id}`);
     };
 
+    const currentData = scheduleData ? scheduleData[selectedCategory] || [] : [];
+
     const renderScheduleItem = ({ item }: { item: ScheduleItem }) => (
         <Pressable
             style={({ pressed }) => [styles.scheduleCard, pressed && styles.pressed]}
             onPress={() => handleAnimePress(item.id)}
         >
-            <View style={styles.timeContainer}>
-                <Ionicons name="time-outline" size={16} color={colors.primary} />
-                <Text style={styles.timeText}>{item.time}</Text>
-            </View>
-
+            <Image
+                source={{ uri: item.poster }}
+                style={styles.poster}
+                resizeMode="cover"
+            />
             <View style={styles.scheduleContent}>
                 <Text style={styles.animeTitle} numberOfLines={2}>
                     {item.title}
@@ -99,8 +85,19 @@ export default function ScheduleScreen() {
                         {item.alternativeTitle}
                     </Text>
                 )}
-                <View style={styles.episodeContainer}>
-                    <Text style={styles.episodeText}>Episode {item.episode}</Text>
+                
+                <View style={styles.metaContainer}>
+                    {item.latestEpisode !== null && item.latestEpisode !== undefined && (
+                        <View style={styles.episodeContainer}>
+                            <Text style={styles.episodeText}>Episode {item.latestEpisode}</Text>
+                        </View>
+                    )}
+                    {item.status && (
+                        <View style={styles.timeContainer}>
+                            <Ionicons name="time-outline" size={14} color={colors.primary} />
+                            <Text style={styles.timeText}>{item.status}</Text>
+                        </View>
+                    )}
                 </View>
             </View>
 
@@ -118,62 +115,44 @@ export default function ScheduleScreen() {
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Schedule</Text>
                 <Text style={styles.headerSubtitle}>
-                    {selectedDate.fullDate.toLocaleDateString('en-US', {
-                        weekday: 'long',
-                        month: 'long',
-                        day: 'numeric'
-                    })}
+                    Currently Airing & Upcoming
                 </Text>
             </View>
 
-            {/* Date Picker */}
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.datePickerContent}
-                style={styles.datePicker}
-            >
-                {dates.map((date, index) => (
+            {/* Category Selector */}
+            <View style={styles.categoryContainer}>
+                {CATEGORIES.map((cat) => (
                     <Pressable
-                        key={index}
+                        key={cat.id}
                         style={[
-                            styles.dateCard,
-                            selectedDate === date && styles.dateCardSelected,
+                            styles.categoryTab,
+                            selectedCategory === cat.id && styles.categoryTabActive,
                         ]}
-                        onPress={() => handleDatePress(date)}
+                        onPress={() => setSelectedCategory(cat.id)}
                     >
                         <Text style={[
-                            styles.dateDay,
-                            selectedDate === date && styles.dateTextSelected,
+                            styles.categoryText,
+                            selectedCategory === cat.id && styles.categoryTextActive,
                         ]}>
-                            {date.day}
+                            {cat.label}
                         </Text>
-                        <Text style={[
-                            styles.dateNumber,
-                            selectedDate === date && styles.dateTextSelected,
-                        ]}>
-                            {date.date}
-                        </Text>
-                        {date.isToday && (
-                            <View style={styles.todayIndicator} />
-                        )}
                     </Pressable>
                 ))}
-            </ScrollView>
+            </View>
 
             {/* Schedule List */}
             {loading ? (
                 <LoadingSpinner fullScreen />
-            ) : scheduleData.length === 0 ? (
+            ) : currentData.length === 0 ? (
                 <View style={styles.emptyContainer}>
                     <Ionicons name="calendar-outline" size={64} color={colors.textTertiary} />
-                    <Text style={styles.emptyText}>No anime scheduled for this day</Text>
+                    <Text style={styles.emptyText}>No anime found for this category</Text>
                 </View>
             ) : (
                 <FlatList
-                    data={scheduleData}
+                    data={currentData}
                     renderItem={renderScheduleItem}
-                    keyExtractor={(item) => item.id}
+                    keyExtractor={(item, index) => item.id || `fallback-${index}`}
                     contentContainerStyle={[
                         styles.listContent,
                         { paddingBottom: insets.bottom + 100 },
@@ -212,80 +191,56 @@ const styles = StyleSheet.create({
         fontSize: typography.fontSize.md,
         marginTop: spacing.xs,
     },
-    datePicker: {
-        maxHeight: 100,
-    },
-    datePickerContent: {
-        paddingHorizontal: spacing.lg,
-        paddingVertical: spacing.md,
-    },
-    dateCard: {
-        width: 60,
-        height: 70,
-        borderRadius: borderRadius.lg,
+    categoryContainer: {
+        flexDirection: 'row',
+        marginHorizontal: spacing.lg,
         backgroundColor: colors.backgroundSecondary,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: spacing.sm,
+        borderRadius: borderRadius.lg,
+        padding: 4,
+        marginVertical: spacing.md,
     },
-    dateCardSelected: {
+    categoryTab: {
+        flex: 1,
+        paddingVertical: spacing.sm,
+        alignItems: 'center',
+        borderRadius: borderRadius.md,
+    },
+    categoryTabActive: {
         backgroundColor: colors.primary,
     },
-    dateDay: {
+    categoryText: {
         color: colors.textSecondary,
-        fontSize: typography.fontSize.xs,
+        fontSize: typography.fontSize.sm,
         fontWeight: '600',
-        textTransform: 'uppercase',
     },
-    dateNumber: {
-        color: colors.text,
-        fontSize: typography.fontSize.xl,
-        fontWeight: '700',
-        marginTop: 2,
-    },
-    dateTextSelected: {
-        color: colors.text,
-    },
-    todayIndicator: {
-        position: 'absolute',
-        bottom: 8,
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: colors.accent,
+    categoryTextActive: {
+        color: '#FFFFFF',
     },
     listContent: {
         paddingHorizontal: spacing.lg,
-        paddingTop: spacing.md,
+        paddingTop: spacing.xs,
     },
     scheduleCard: {
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: colors.card,
         borderRadius: borderRadius.lg,
-        padding: spacing.lg,
+        padding: spacing.md,
         marginBottom: spacing.md,
     },
     pressed: {
         opacity: 0.8,
     },
-    timeContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: colors.backgroundSecondary,
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        borderRadius: borderRadius.md,
+    poster: {
+        width: 60,
+        height: 80,
+        borderRadius: borderRadius.sm,
         marginRight: spacing.md,
-    },
-    timeText: {
-        color: colors.primary,
-        fontSize: typography.fontSize.sm,
-        fontWeight: '700',
-        marginLeft: spacing.xs,
+        backgroundColor: colors.backgroundTertiary,
     },
     scheduleContent: {
         flex: 1,
+        justifyContent: 'center',
     },
     animeTitle: {
         color: colors.text,
@@ -298,13 +253,33 @@ const styles = StyleSheet.create({
         fontSize: typography.fontSize.sm,
         marginTop: 2,
     },
-    episodeContainer: {
+    metaContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
         marginTop: spacing.sm,
+        flexWrap: 'wrap',
+    },
+    episodeContainer: {
+        backgroundColor: colors.backgroundSecondary,
+        paddingHorizontal: spacing.sm,
+        paddingVertical: 2,
+        borderRadius: borderRadius.sm,
+        marginRight: spacing.sm,
     },
     episodeText: {
         color: colors.textSecondary,
-        fontSize: typography.fontSize.sm,
+        fontSize: typography.fontSize.xs,
         fontWeight: '500',
+    },
+    timeContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    timeText: {
+        color: colors.primary,
+        fontSize: typography.fontSize.xs,
+        fontWeight: '700',
+        marginLeft: 4,
     },
     emptyContainer: {
         flex: 1,

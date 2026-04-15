@@ -107,11 +107,16 @@ class ApiClient {
 
     // Get search suggestions
     async getSuggestions(keyword: string): Promise<Suggestion[]> {
-        const response = await this.fetch<ApiResponse<Suggestion[]>>(
-            API_ENDPOINTS.suggestion,
-            { keyword }
-        );
-        return response.data;
+        try {
+            const response = await this.fetch<ApiResponse<PaginatedResponse<AnimeBasic>>>(
+                API_ENDPOINTS.search,
+                { keyword }
+            );
+            return (response.data?.response as unknown as Suggestion[]) || [];
+        } catch (error) {
+            console.error('getSuggestions error:', error);
+            return [];
+        }
     }
 
     // Get anime characters
@@ -198,10 +203,9 @@ class ApiClient {
     }
 
     // Get schedule
-    async getSchedule(date?: string): Promise<ScheduleResponse> {
+    async getSchedule(): Promise<ScheduleResponse> {
         const response = await this.fetch<ApiResponse<ScheduleResponse>>(
-            API_ENDPOINTS.schedule,
-            { date: date || '' }
+            API_ENDPOINTS.schedule
         );
         return response.data;
     }
@@ -214,8 +218,14 @@ class ApiClient {
 
     // Get meta data (genres, filter options, etc)
     async getMeta(): Promise<MetaData> {
-        const response = await this.fetch<ApiResponse<MetaData>>(API_ENDPOINTS.meta);
-        return response.data;
+        try {
+            const response = await this.fetch<ApiResponse<MetaData>>(API_ENDPOINTS.meta);
+            return response.data;
+        } catch (error) {
+            return {
+                genres: ['Action', 'Adventure', 'Cars', 'Comedy', 'Dementia', 'Demons', 'Drama', 'Ecchi', 'Fantasy', 'Game', 'Harem', 'Historical', 'Horror', 'Josei', 'Kids', 'Magic', 'Martial Arts', 'Mecha', 'Military', 'Music', 'Mystery', 'Parody', 'Police', 'Psychological', 'Romance', 'Samurai', 'School', 'Sci-Fi', 'Seinen', 'Shoujo', 'Shoujo Ai', 'Shounen', 'Shounen Ai', 'Slice of Life', 'Space', 'Sports', 'Super Power', 'Supernatural', 'Thriller', 'Vampire', 'Yaoi', 'Yuri']
+            } as MetaData;
+        }
     }
 
     // Query endpoints (top-airing, most-popular, etc)

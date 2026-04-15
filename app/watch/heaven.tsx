@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { AVPlaybackStatus, ResizeMode, Video } from 'expo-av';
+import { NativeVideo } from '../../components/NativeVideo';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -51,7 +51,7 @@ export default function HeavenWatchScreen() {
 
     const client = apiClient;
 
-    const videoRef = useRef<Video>(null);
+    const videoRef = useRef<any>(null);
     const webVideoRef = useRef<HTMLVideoElement | null>(null);
     const lastSavedTime = useRef<number>(0);
     const hasMarkedWatched = useRef<boolean>(false);
@@ -396,7 +396,7 @@ export default function HeavenWatchScreen() {
     };
 
     // Native playback status
-    const handlePlaybackStatusUpdate = (status: AVPlaybackStatus) => {
+    const handlePlaybackStatusUpdate = (status: any) => {
         if (!status.isLoaded) {
             if (status.error) { setError(`Playback error: ${status.error}`); setIsBuffering(false); }
             return;
@@ -488,18 +488,15 @@ export default function HeavenWatchScreen() {
         }
 
         return (
-            <Video
+            <NativeVideo
                 ref={videoRef}
                 source={{
                     uri: streamData.link.file,
                     headers: streamData.referer ? { Referer: streamData.referer } : undefined,
                 }}
                 style={{ width: '100%', height: '100%', backgroundColor: '#000' }}
-                resizeMode={ResizeMode.CONTAIN}
                 shouldPlay={isPlaying}
-                isLooping={false}
                 onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-                useNativeControls={false}
                 onLoadStart={() => setIsBuffering(true)}
                 onReadyForDisplay={() => setIsBuffering(false)}
             />

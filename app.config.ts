@@ -5,17 +5,17 @@ const IS_DEV = process.env.APP_VARIANT === 'development';
 export default ({ config }: ConfigContext): ExpoConfig => {
     return {
         ...config,
-        name: IS_DEV ? 'AniFlow (Dev)' : 'AniFlow',
+        name: IS_DEV ? 'Anime Heaven (Dev)' : 'Anime Heaven',
         slug: 'anime-view-app',
         version: '2.1.0',
         orientation: 'portrait',
         icon: './assets/images/aniflow_icon.png',
-        scheme: 'animeviewapp',
+        scheme: 'animeheavenapp',
         userInterfaceStyle: 'automatic',
         newArchEnabled: true,
         ios: {
             supportsTablet: true,
-            bundleIdentifier: IS_DEV ? 'com.entzib.animeviewapp.dev' : 'com.entzib.animeviewapp',
+            bundleIdentifier: IS_DEV ? 'com.entzib.animeheavenapp.dev' : 'com.entzib.animeheavenapp',
         },
         android: {
             adaptiveIcon: {
@@ -26,7 +26,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
             },
             edgeToEdgeEnabled: true,
             predictiveBackGestureEnabled: false,
-            package: IS_DEV ? 'com.entzib.animeviewapp.dev' : 'com.entzib.animeviewapp',
+            package: IS_DEV ? 'com.entzib.animeheavenapp.dev' : 'com.entzib.animeheavenapp',
             versionCode: 3,
         },
         web: {

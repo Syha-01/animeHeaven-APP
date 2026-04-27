@@ -78,9 +78,48 @@ A modern, premium anime discovery and streaming experience built with React Nati
 - `types/`: Comprehensive TypeScript definitions for API responses and app state.
 - `assets/`: Static assets including images, fonts, and icons.
 
-## Configuration
+## Backend API Requirement
 
-The application's behavior and API connections can be configured in `config.ts`. Ensure the `API_BASE_URL` is correctly set to point to your backend instance for data fetching to work correctly.
+This application requires a compatible backend API to function. You must build or host your own instance of the **AnimeHeaven API** and provide its URL in the application configuration.
+
+### Configuration
+
+Update `config.ts` with your API's base URL:
+
+```typescript
+const getBaseUrl = () => {
+    return 'https://your-api-url.com'; // Replace with your backend URL
+};
+```
+
+### API Response Specification
+
+The application expects all API responses to follow a consistent JSON format to ensure proper data parsing and UI rendering.
+
+#### Standard Response Wrapper
+All successful responses should be wrapped in a status object:
+```json
+{
+  "status": true,
+  "data": { ... } // Actual resource data
+}
+```
+
+#### Paginated Data Structure
+For list-based endpoints (Search, Genres, etc.), the `data` field must include pagination metadata:
+```json
+{
+  "status": true,
+  "data": {
+    "pageInfo": {
+      "currentPage": 1,
+      "hasNextPage": true,
+      "totalPages": 15
+    },
+    "response": [ ... ] // Array of items
+  }
+}
+```
 
 ---
 

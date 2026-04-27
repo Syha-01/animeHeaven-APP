@@ -121,6 +121,17 @@ For list-based endpoints (Search, Genres, etc.), the `data` field must include p
 }
 ```
 
----
+## Disclaimer
 
-Built with passion for the anime community.
+This application is developed strictly for educational and research purposes.
+
+- **No Content Hosting**: This application does not host, store, or upload any video files, media, or copyrighted material.
+- **External Sources**: All data, images, and media content are retrieved from external, publicly available APIs and third-party services. The application functions solely as a user interface to display information from these sources.
+- **Non-Affiliation**: The developers of this application are not affiliated with, authorized, or endorsed by any of the content providers or external services mentioned or used.
+- **Compliance**: Users are responsible for ensuring their use of the application complies with local laws and the terms of service of any third-party content providers. The developers assume no liability for misuse of this software.
+
+## DMCA
+
+This application does not store any files on its server. All contents are provided by non-affiliated third parties. If you believe your copyrighted material is being linked to via this application, please contact the respective third-party hosting services directly for removal. As this application only indexes and links to content, we have no control over the source files.
+
+---

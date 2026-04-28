@@ -202,6 +202,17 @@ class ApiClient {
         return data as StreamData;
     }
 
+    // Get download URL for an episode
+    async getDownloadUrl(episodeId: string): Promise<string | null> {
+        try {
+            const streamData = await this.getStream(episodeId);
+            return streamData?.download || null;
+        } catch (error) {
+            console.error('Failed to get download URL:', error);
+            return null;
+        }
+    }
+
     // Get schedule
     async getSchedule(): Promise<ScheduleResponse> {
         const response = await this.fetch<ApiResponse<ScheduleResponse>>(

@@ -83,6 +83,7 @@ export interface StreamData {
         file: string;
         type: string;
     };
+    download?: string | null;
     tracks: StreamTrack[];
     intro: {
         start: number;

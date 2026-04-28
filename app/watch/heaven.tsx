@@ -22,6 +22,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { apiClient } from '../../api/client';
 import { AnimeSection } from '../../components/AnimeSection';
 import { useUser } from '../../context/UserContext';
+import { useDownload } from '../../hooks/useDownload';
 
 import { colors, shadows } from '../../theme';
 import type { AnimeDetails, Episode, StreamData } from '../../types';
@@ -48,6 +49,7 @@ export default function HeavenWatchScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { updateWatchHistory, markEpisodeWatched, isEpisodeWatched, getAnimeHistory } = useUser();
+    const { getDownloadState, startDownload, cancelDownload } = useDownload();
 
     const client = apiClient;
 
@@ -554,6 +556,34 @@ export default function HeavenWatchScreen() {
                         )}
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        {/* Download Button */}
+                        {(() => {
+                            if (!id) return null;
+                            const dlState = getDownloadState(id);
+                            const isDownloading = dlState.status === 'downloading' || dlState.status === 'fetching';
+                            const isComplete = dlState.status === 'completed';
+                            return (
+                                <Pressable
+                                    style={styles.iconButton}
+                                    onPress={() => {
+                                        if (isDownloading) {
+                                            cancelDownload(id);
+                                        } else if (!isComplete) {
+                                            const epNum = currentEpisodeIndex !== -1 ? episodes[currentEpisodeIndex]?.episodeNumber : 0;
+                                            startDownload(id, animeName || 'Anime', epNum || 0);
+                                        }
+                                    }}
+                                >
+                                    {isDownloading ? (
+                                        <ActivityIndicator size={20} color={colors.primary} />
+                                    ) : isComplete ? (
+                                        <Ionicons name="checkmark-circle" size={24} color={colors.success} />
+                                    ) : (
+                                        <Ionicons name="download-outline" size={24} color="#FFF" />
+                                    )}
+                                </Pressable>
+                            );
+                        })()}
                         <Pressable style={styles.iconButton} onPress={() => setShowSettingsMenu(!showSettingsMenu)}>
                             <Ionicons name="settings-outline" size={24} color="#FFF" />
                         </Pressable>

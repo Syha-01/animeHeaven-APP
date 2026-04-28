@@ -8,7 +8,7 @@ A modern, premium anime discovery and streaming experience built with React Nati
 - **Deep Content Discovery**: Access detailed information for thousands of anime, including synopses, ratings, studio info, and related recommendations.
 - **Character & Cast Insights**: Explore detailed profiles for characters and voice actors (seiyuu), including their roles across different series.
 - **Premium Streaming**: High-quality video playback with support for multiple servers, subtitle/dub selections, and HLS streaming.
-- **Advanced Filtering**: Powerful search system allowing users to filter by genre, status, season, score, and more.
+- **Advanced Filtering**: Powerful search system allowing users to filter by type, status, language, and sort by various criteria.
 - **Release Schedule**: Stay updated with a comprehensive release schedule for upcoming and recently aired episodes.
 - **Personal Watchlist**: Manage your anime library with a "Saved" section, tracking your progress with statuses like "Watching," "Watch Later," and "Completed."
 - **Optimized Performance**: Built with performance in mind using Expo Image for efficient image loading and Reanimated for smooth transitions.
@@ -72,8 +72,7 @@ A modern, premium anime discovery and streaming experience built with React Nati
 - `app/`: Expo Router directory containing all screens and layout configurations.
 - `api/`: Centralized API client and endpoint management.
 - `components/`: Atomic and molecular UI components used across the app.
-- `context/`: Global state providers (e.g., Watchlist, Theme).
-- `hooks/`: Custom React hooks for business logic and data fetching.
+- `context/`: Global state providers (e.g., User Data, Watchlist).
 - `theme/`: Design tokens, colors, and global style configurations.
 - `types/`: Comprehensive TypeScript definitions for API responses and app state.
 - `assets/`: Static assets including images, fonts, and icons.

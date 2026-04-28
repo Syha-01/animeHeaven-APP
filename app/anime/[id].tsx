@@ -3,6 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+    ActivityIndicator,
     Dimensions,
     Image,
     Pressable,
@@ -13,13 +14,13 @@ import {
     View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle } from 'react-native-svg';
 import { apiClient } from '../../api/client';
 import { AnimeSection } from '../../components/AnimeSection';
 import { Badge, EpisodeBadges } from '../../components/Badge';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { getStatusInfo, StatusPickerModal } from '../../components/StatusPickerModal';
 import { useUser } from '../../context/UserContext';
+import { useDownload } from '../../hooks/useDownload';
 
 import { borderRadius, colors, shadows, spacing, typography } from '../../theme';
 import type { AnimeDetails, Episode, WatchStatus } from '../../types';
@@ -33,7 +34,7 @@ export default function AnimeDetailScreen() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { saveAnime, removeAnime, isSaved, getAnimeStatus, getAnimeHistory, isEpisodeWatched} = useUser();
-
+    const { getDownloadState, startDownload, cancelDownload } = useDownload();
 
     const client = apiClient;
 
@@ -384,21 +385,7 @@ export default function AnimeDetailScreen() {
                     <View style={styles.episodesSection}>
                         <View style={styles.sectionHeader}>
                             <Text style={styles.sectionTitle}>Episodes</Text>
-                            {/* Legend */}
-                            <View style={styles.legend}>
-                                <View style={styles.legendItem}>
-                                    <View style={[styles.legendDot, styles.legendDotCurrent]} />
-                                    <Text style={styles.legendText}>Now</Text>
-                                </View>
-                                <View style={styles.legendItem}>
-                                    <View style={[styles.legendDot, styles.legendDotWatched]} />
-                                    <Text style={styles.legendText}>Watched</Text>
-                                </View>
-                                <View style={styles.legendItem}>
-                                    <View style={[styles.legendDot, styles.legendDotProgress]} />
-                                    <Text style={styles.legendText}>In Progress</Text>
-                                </View>
-                            </View>
+                            <Text style={styles.episodeCount}>{episodes.length} episodes</Text>
                         </View>
 
                         <View style={styles.episodesContent}>
@@ -425,83 +412,123 @@ export default function AnimeDetailScreen() {
                                 </ScrollView>
                             )}
 
-                            <View style={styles.episodeGrid}>
+                            <View style={styles.episodeList}>
                                 {paginatedEpisodes.map((episode) => {
                                     const isCurrent = getAnimeHistory(anime.id)?.lastEpisodeId === episode.id;
                                     const isWatched = isEpisodeWatched(anime.id, episode.id);
                                     const history = getAnimeHistory(anime.id);
                                     const episodeProgress = history?.episodes[episode.id]?.progress || 0;
                                     const hasProgress = episodeProgress > 0 && episodeProgress < 1;
+                                    const dlState = getDownloadState(episode.id);
 
-                                    // Circle dimensions
-                                    const size = 48;
-                                    const strokeWidth = 3;
-                                    const radius = (size - strokeWidth) / 2;
-                                    const circumference = 2 * Math.PI * radius;
-                                    const progressOffset = circumference - (episodeProgress * circumference);
-
-                                    // Determine colors
-                                    const getProgressColor = () => {
-                                        if (isCurrent) return colors.primary;
-                                        if (isWatched) return colors.info;
-                                        if (hasProgress) return colors.success;
-                                        return 'transparent';
+                                    // Badge color
+                                    const getBadgeStyle = () => {
+                                        if (isCurrent) return styles.epBadgeCurrent;
+                                        if (isWatched) return styles.epBadgeWatched;
+                                        if (hasProgress) return styles.epBadgeProgress;
+                                        return styles.epBadgeDefault;
+                                    };
+                                    const getBadgeTextStyle = () => {
+                                        if (isCurrent || isWatched) return styles.epBadgeTextActive;
+                                        if (hasProgress) return styles.epBadgeTextProgress;
+                                        return styles.epBadgeTextDefault;
                                     };
 
-                                    const getBgColor = () => {
-                                        if (isCurrent) return colors.primary;
-                                        if (isWatched) return colors.info;
-                                        return colors.card;
-                                    };
+                                    // Download button icon
+                                    const renderDownloadButton = () => {
+                                        const isDownloading = dlState.status === 'downloading' || dlState.status === 'fetching';
+                                        const isComplete = dlState.status === 'completed';
+                                        const isError = dlState.status === 'error';
 
-                                    const getTextColor = () => {
-                                        if (isCurrent || isWatched) return '#FFF';
-                                        if (hasProgress) return colors.success;
-                                        return colors.textSecondary;
+                                        return (
+                                            <Pressable
+                                                style={[
+                                                    styles.downloadButton,
+                                                    isDownloading && styles.downloadButtonActive,
+                                                    isComplete && styles.downloadButtonComplete,
+                                                    isError && styles.downloadButtonError,
+                                                ]}
+                                                onPress={() => {
+                                                    if (isDownloading) {
+                                                        cancelDownload(episode.id);
+                                                    } else {
+                                                        startDownload(episode.id, anime.title, episode.episodeNumber);
+                                                    }
+                                                }}
+                                                disabled={isComplete}
+                                            >
+                                                {isDownloading ? (
+                                                    <View style={styles.downloadProgressContainer}>
+                                                        <ActivityIndicator size={16} color={colors.primary} />
+                                                        {dlState.progress > 0 && (
+                                                            <Text style={styles.downloadProgressText}>
+                                                                {Math.round(dlState.progress * 100)}%
+                                                            </Text>
+                                                        )}
+                                                    </View>
+                                                ) : isComplete ? (
+                                                    <Ionicons name="checkmark-circle" size={22} color={colors.success} />
+                                                ) : isError ? (
+                                                    <Ionicons name="alert-circle" size={22} color={colors.error} />
+                                                ) : (
+                                                    <Ionicons name="download-outline" size={22} color={colors.textSecondary} />
+                                                )}
+                                            </Pressable>
+                                        );
                                     };
 
                                     return (
                                         <Pressable
                                             key={episode.id}
-                                            style={styles.episodeCircleContainer}
+                                            style={[
+                                                styles.episodeRow,
+                                                isCurrent && styles.episodeRowCurrent,
+                                            ]}
                                             onPress={() => handleWatchPress(episode)}
                                         >
-                                            {/* SVG Progress Ring */}
-                                            <View style={styles.episodeCircle}>
-                                                <Svg width={size} height={size} style={styles.progressRing}>
-                                                    {/* Background circle (track) */}
-                                                    <Circle
-                                                        cx={size / 2}
-                                                        cy={size / 2}
-                                                        r={radius}
-                                                        stroke={colors.border}
-                                                        strokeWidth={strokeWidth}
-                                                        fill={getBgColor()}
-                                                    />
-                                                    {/* Progress circle */}
-                                                    {(hasProgress || isWatched) && (
-                                                        <Circle
-                                                            cx={size / 2}
-                                                            cy={size / 2}
-                                                            r={radius}
-                                                            stroke={getProgressColor()}
-                                                            strokeWidth={strokeWidth}
-                                                            fill="transparent"
-                                                            strokeDasharray={`${circumference} ${circumference}`}
-                                                            strokeDashoffset={isWatched ? 0 : progressOffset}
-                                                            strokeLinecap="round"
-                                                            rotation="-90"
-                                                            origin={`${size / 2}, ${size / 2}`}
-                                                        />
-                                                    )}
-                                                </Svg>
-                                                {/* Episode number text */}
-                                                <Text style={[styles.episodeCircleText, { color: getTextColor() }]}>
+                                            {/* Episode Number Badge */}
+                                            <View style={[styles.epBadge, getBadgeStyle()]}>
+                                                <Text style={[styles.epBadgeText, getBadgeTextStyle()]}>
                                                     {episode.episodeNumber}
                                                 </Text>
                                             </View>
+
+                                            {/* Episode Info */}
+                                            <View style={styles.episodeInfo}>
+                                                <Text style={styles.episodeTitle} numberOfLines={1}>
+                                                    Episode {episode.episodeNumber}
+                                                </Text>
+                                                {/* Watch Progress Bar */}
+                                                {hasProgress && (
+                                                    <View style={styles.epProgressBarTrack}>
+                                                        <View
+                                                            style={[
+                                                                styles.epProgressBarFill,
+                                                                { width: `${Math.round(episodeProgress * 100)}%` },
+                                                            ]}
+                                                        />
+                                                    </View>
+                                                )}
+                                                {isWatched && (
+                                                    <View style={styles.watchedLabel}>
+                                                        <Ionicons name="checkmark" size={10} color={colors.info} />
+                                                        <Text style={styles.watchedLabelText}>Watched</Text>
+                                                    </View>
+                                                )}
+                                            </View>
+
+                                            {/* Play Icon */}
+                                            <Pressable
+                                                style={styles.playButton}
+                                                onPress={() => handleWatchPress(episode)}
+                                            >
+                                                <Ionicons name="play" size={18} color={colors.text} />
+                                            </Pressable>
+
+                                            {/* Download Button */}
+                                            {renderDownloadButton()}
                                         </Pressable>
-                                    )
+                                    );
                                 })}
                             </View>
                         </View>
@@ -713,75 +740,139 @@ const styles = StyleSheet.create({
         marginBottom: spacing.md,
     },
     episodeCount: {
-        color: colors.textSecondary,
+        color: colors.textTertiary,
         fontSize: typography.fontSize.sm,
+        fontWeight: '500',
     },
     episodesContent: {
         paddingHorizontal: spacing.lg,
     },
-    episodeGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 8,
-        justifyContent: 'center',
+    // ─── Episode List Styles ───
+    episodeList: {
+        gap: 6,
     },
-    legend: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    legendItem: {
+    episodeRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
-    },
-    legendDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-    },
-    legendDotCurrent: {
-        backgroundColor: colors.primary,
-    },
-    legendDotWatched: {
-        backgroundColor: colors.info,
-    },
-    legendDotProgress: {
-        backgroundColor: colors.success,
-    },
-    legendText: {
-        color: colors.textSecondary,
-        fontSize: 10,
-    },
-    episodeSquare: {
-        width: 44,
-        height: 44,
-        borderRadius: 8,
         backgroundColor: colors.card,
+        borderRadius: borderRadius.lg,
+        paddingVertical: spacing.md,
+        paddingHorizontal: spacing.md,
+        borderWidth: 1,
+        borderColor: 'transparent',
+    },
+    episodeRowCurrent: {
+        borderColor: colors.primary,
+        backgroundColor: colors.surfaceLight,
+    },
+    // Episode number badge
+    epBadge: {
+        width: 40,
+        height: 40,
+        borderRadius: borderRadius.md,
         alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: 1,
-        borderColor: colors.border,
+        marginRight: spacing.md,
     },
-    episodeSquareCurrent: {
+    epBadgeDefault: {
+        backgroundColor: colors.backgroundSecondary,
+    },
+    epBadgeCurrent: {
         backgroundColor: colors.primary,
-        borderColor: colors.primary,
     },
-    episodeSquareWatched: {
+    epBadgeWatched: {
         backgroundColor: colors.info,
-        borderColor: colors.info,
     },
-    episodeSquareProgress: {
-        backgroundColor: colors.success,
+    epBadgeProgress: {
+        backgroundColor: 'rgba(16, 185, 129, 0.15)',
+        borderWidth: 1,
         borderColor: colors.success,
     },
-    episodeSquareText: {
+    epBadgeText: {
+        fontSize: typography.fontSize.md,
+        fontWeight: '700',
+    },
+    epBadgeTextDefault: {
         color: colors.textSecondary,
+    },
+    epBadgeTextActive: {
+        color: '#FFF',
+    },
+    epBadgeTextProgress: {
+        color: colors.success,
+    },
+    // Episode info
+    episodeInfo: {
+        flex: 1,
+        marginRight: spacing.sm,
+    },
+    episodeTitle: {
+        color: colors.text,
         fontSize: typography.fontSize.md,
         fontWeight: '600',
     },
-    episodeSquareTextActive: {
-        color: '#FFF',
+    epProgressBarTrack: {
+        height: 3,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        borderRadius: 2,
+        marginTop: 6,
+        overflow: 'hidden',
     },
+    epProgressBarFill: {
+        height: '100%',
+        backgroundColor: colors.success,
+        borderRadius: 2,
+    },
+    watchedLabel: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        marginTop: 4,
+    },
+    watchedLabelText: {
+        color: colors.info,
+        fontSize: 10,
+        fontWeight: '600',
+    },
+    // Play button
+    playButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(139, 92, 246, 0.2)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: spacing.sm,
+    },
+    // Download button
+    downloadButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    downloadButtonActive: {
+        backgroundColor: 'rgba(139, 92, 246, 0.12)',
+    },
+    downloadButtonComplete: {
+        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    },
+    downloadButtonError: {
+        backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    },
+    downloadProgressContainer: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    downloadProgressText: {
+        color: colors.primary,
+        fontSize: 8,
+        fontWeight: '700',
+        marginTop: 1,
+    },
+    // ─── Other Styles ───
     errorContainer: {
         flex: 1,
         backgroundColor: colors.background,
@@ -828,27 +919,8 @@ const styles = StyleSheet.create({
     pageButtonTextActive: {
         color: '#FFF',
     },
-    // Pagination scroll
     paginationScroll: {
         marginBottom: 12,
     },
-    // Circular episode styles
-    episodeCircleContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    episodeCircle: {
-        width: 48,
-        height: 48,
-        alignItems: 'center',
-        justifyContent: 'center',
-        position: 'relative',
-    },
-    progressRing: {
-        position: 'absolute',
-    },
-    episodeCircleText: {
-        fontSize: typography.fontSize.md,
-        fontWeight: '600',
-    },
 });
+

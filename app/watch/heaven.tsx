@@ -45,7 +45,7 @@ const formatTime = (ms: number) => {
 };
 
 export default function HeavenWatchScreen() {
-    const { id, animeId, startFullscreen } = useLocalSearchParams<{ id: string; animeId: string; startFullscreen?: string }>();
+    const { id, animeId, startFullscreen, localUri } = useLocalSearchParams<{ id: string; animeId: string; startFullscreen?: string; localUri?: string }>();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { updateWatchHistory, markEpisodeWatched, isEpisodeWatched, getAnimeHistory } = useUser();
@@ -289,6 +289,18 @@ export default function HeavenWatchScreen() {
             setError(null);
             setStreamData(null);
 
+            // If we have a local URI, bypass the API and use it directly
+            if (localUri) {
+                setStreamData({
+                    link: { file: localUri },
+                    referer: '',
+                    type: 'local'
+                } as any);
+                setAnimeName(animeId.replace(/_/g, ' '));
+                setLoading(false);
+                return;
+            }
+
             const streamResponse = await client.getStream(id);
             if (streamResponse) {
                 setStreamData(streamResponse);
@@ -301,7 +313,7 @@ export default function HeavenWatchScreen() {
         } finally {
             setLoading(false);
         }
-    }, [id]);
+    }, [id, localUri, animeId]);
 
     useEffect(() => { fetchStream(); }, [fetchStream]);
 

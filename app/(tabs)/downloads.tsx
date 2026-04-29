@@ -9,7 +9,7 @@ import {
     Text,
     View,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { borderRadius, colors, spacing, typography } from '../../theme';
 import {
@@ -33,6 +33,7 @@ if (Platform.OS !== 'web') {
 
 export default function DownloadsScreen() {
     const insets = useSafeAreaInsets();
+    const router = useRouter();
     const [downloadedAnime, setDownloadedAnime] = useState<DownloadedAnime[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedAnime, setSelectedAnime] = useState<DownloadedAnime | null>(null);
@@ -144,6 +145,20 @@ export default function DownloadsScreen() {
         }
     };
 
+    const handlePlayEpisode = (episode: DownloadedEpisode) => {
+        if (!selectedAnime) return;
+        
+        // Pass the local file URI to the player
+        router.push({
+            pathname: '/watch/heaven' as any,
+            params: {
+                id: `local-${episode.episodeNumber}`, // Dummy ID for local files
+                animeId: selectedAnime.folderName,
+                localUri: episode.fileUri,
+            }
+        });
+    };
+
     const handleBackToFolders = () => {
         setSelectedAnime(null);
         setViewMode('folders');
@@ -194,6 +209,13 @@ export default function DownloadsScreen() {
                     <Text style={styles.episodeTitle}>Episode {item.episodeNumber || 0}</Text>
                     <Text style={styles.episodeSize}>{formatFileSize(item.fileSize || 0)}</Text>
                 </View>
+
+                <Pressable
+                    style={[styles.actionButton, { backgroundColor: colors.primary }]}
+                    onPress={() => handlePlayEpisode(item)}
+                >
+                    <Ionicons name="play" size={18} color="#FFF" style={{ marginLeft: 2 }} />
+                </Pressable>
 
                 <Pressable
                     style={styles.actionButton}

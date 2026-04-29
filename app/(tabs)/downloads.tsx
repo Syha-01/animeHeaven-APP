@@ -5,7 +5,6 @@ import {
     FlatList,
     Platform,
     Pressable,
-    ScrollView,
     StyleSheet,
     Text,
     View,
@@ -20,6 +19,7 @@ import {
     DownloadedEpisode,
     formatFileSize,
     getDownloadedAnime,
+    refreshAnimeFolder,
 } from '../../utils/downloadStorage';
 
 let Sharing: any = null;
@@ -31,41 +31,42 @@ if (Platform.OS !== 'web') {
     }
 }
 
-type ViewMode = 'folders' | 'episodes';
-
 export default function DownloadsScreen() {
     const insets = useSafeAreaInsets();
     const [downloadedAnime, setDownloadedAnime] = useState<DownloadedAnime[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedAnime, setSelectedAnime] = useState<DownloadedAnime | null>(null);
-    const [viewMode, setViewMode] = useState<ViewMode>('folders');
+    const [viewMode, setViewMode] = useState<'folders' | 'episodes'>('folders');
 
     const loadDownloads = useCallback(async () => {
         setLoading(true);
         try {
             const data = await getDownloadedAnime();
-            setDownloadedAnime(data);
+            setDownloadedAnime(data || []);
         } catch (error) {
             console.error('Failed to load downloads:', error);
+            setDownloadedAnime([]);
         } finally {
             setLoading(false);
         }
     }, []);
 
-    // Refresh downloads when the tab comes into focus
+    // Refresh only when tab gains focus AND we're on the folder view
     useFocusEffect(
         useCallback(() => {
-            loadDownloads();
-        }, [loadDownloads])
+            if (viewMode === 'folders') {
+                loadDownloads();
+            }
+        }, [loadDownloads, viewMode])
     );
 
-    const totalSize = downloadedAnime.reduce((sum, a) => sum + a.totalSize, 0);
-    const totalEpisodes = downloadedAnime.reduce((sum, a) => sum + a.episodes.length, 0);
+    const totalSize = downloadedAnime.reduce((sum, a) => sum + (a.totalSize || 0), 0);
+    const totalEpisodes = downloadedAnime.reduce((sum, a) => sum + (a.episodes?.length || 0), 0);
 
     const handleDeleteAnime = (anime: DownloadedAnime) => {
         Alert.alert(
             'Delete All Episodes',
-            `Delete all ${anime.episodes.length} downloaded episodes of "${anime.animeName}"?\n\nThis will free up ${formatFileSize(anime.totalSize)}.`,
+            `Delete all ${anime.episodes?.length || 0} downloaded episodes of "${anime.animeName}"?\n\nThis will free up ${formatFileSize(anime.totalSize)}.`,
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -95,10 +96,9 @@ export default function DownloadsScreen() {
                     style: 'destructive',
                     onPress: async () => {
                         await deleteEpisode(episode.fileUri);
-                        loadDownloads();
-                        // Update selected anime episodes
+                        // Update selected anime in place
                         if (selectedAnime) {
-                            const updated = selectedAnime.episodes.filter(
+                            const updated = (selectedAnime.episodes || []).filter(
                                 e => e.fileUri !== episode.fileUri
                             );
                             if (updated.length === 0) {
@@ -108,10 +108,11 @@ export default function DownloadsScreen() {
                                 setSelectedAnime({
                                     ...selectedAnime,
                                     episodes: updated,
-                                    totalSize: updated.reduce((s, e) => s + e.fileSize, 0),
+                                    totalSize: updated.reduce((s, e) => s + (e.fileSize || 0), 0),
                                 });
                             }
                         }
+                        loadDownloads();
                     },
                 },
             ],
@@ -119,83 +120,97 @@ export default function DownloadsScreen() {
     };
 
     const handleShareEpisode = async (episode: DownloadedEpisode) => {
-        if (Sharing && await Sharing.isAvailableAsync()) {
-            await Sharing.shareAsync(episode.fileUri);
-        } else {
-            Alert.alert('Sharing Unavailable', 'Sharing is not available on this device.');
+        try {
+            if (Sharing && await Sharing.isAvailableAsync()) {
+                await Sharing.shareAsync(episode.fileUri);
+            } else {
+                Alert.alert('Sharing Unavailable', 'Sharing is not available on this device.');
+            }
+        } catch (error) {
+            console.error('Share failed:', error);
         }
     };
 
-    const handleAnimePress = (anime: DownloadedAnime) => {
-        setSelectedAnime(anime);
-        setViewMode('episodes');
+    const handleAnimePress = async (anime: DownloadedAnime) => {
+        try {
+            // Re-scan the folder to get fresh data before showing episodes
+            const fresh = await refreshAnimeFolder(anime.folderUri, anime.folderName);
+            setSelectedAnime(fresh || anime);
+            setViewMode('episodes');
+        } catch {
+            // Fallback to existing data
+            setSelectedAnime(anime);
+            setViewMode('episodes');
+        }
     };
 
     const handleBackToFolders = () => {
         setSelectedAnime(null);
         setViewMode('folders');
+        loadDownloads(); // Refresh folder list
     };
 
     // ─── Render: Anime Folder Card ───
-    const renderAnimeFolder = ({ item }: { item: DownloadedAnime }) => (
-        <Pressable
-            style={({ pressed }) => [styles.folderCard, pressed && styles.pressed]}
-            onPress={() => handleAnimePress(item)}
-            onLongPress={() => handleDeleteAnime(item)}
-            delayLongPress={500}
-        >
-            {/* Folder Icon */}
-            <View style={styles.folderIconContainer}>
-                <Ionicons name="folder" size={36} color={colors.primary} />
-                <View style={styles.folderBadge}>
-                    <Text style={styles.folderBadgeText}>{item.episodes.length}</Text>
+    const renderAnimeFolder = ({ item }: { item: DownloadedAnime }) => {
+        if (!item) return null;
+        const epCount = item.episodes?.length || 0;
+        return (
+            <Pressable
+                style={({ pressed }) => [styles.folderCard, pressed && styles.pressed]}
+                onPress={() => handleAnimePress(item)}
+                onLongPress={() => handleDeleteAnime(item)}
+                delayLongPress={500}
+            >
+                <View style={styles.folderIconContainer}>
+                    <Ionicons name="folder" size={36} color={colors.primary} />
+                    <View style={styles.folderBadge}>
+                        <Text style={styles.folderBadgeText}>{epCount}</Text>
+                    </View>
                 </View>
-            </View>
 
-            {/* Folder Info */}
-            <Text style={styles.folderName} numberOfLines={2}>
-                {item.animeName}
-            </Text>
-            <Text style={styles.folderMeta}>
-                {item.episodes.length} {item.episodes.length === 1 ? 'episode' : 'episodes'}
-            </Text>
-            <Text style={styles.folderSize}>
-                {formatFileSize(item.totalSize)}
-            </Text>
-        </Pressable>
-    );
+                <Text style={styles.folderName} numberOfLines={2}>
+                    {item.animeName || 'Unknown'}
+                </Text>
+                <Text style={styles.folderMeta}>
+                    {epCount} {epCount === 1 ? 'episode' : 'episodes'}
+                </Text>
+                <Text style={styles.folderSize}>
+                    {formatFileSize(item.totalSize || 0)}
+                </Text>
+            </Pressable>
+        );
+    };
 
     // ─── Render: Episode Row ───
-    const renderEpisodeRow = ({ item }: { item: DownloadedEpisode }) => (
-        <View style={styles.episodeRow}>
-            {/* Episode Badge */}
-            <View style={styles.epBadge}>
-                <Text style={styles.epBadgeText}>{item.episodeNumber}</Text>
+    const renderEpisodeRow = ({ item }: { item: DownloadedEpisode }) => {
+        if (!item) return null;
+        return (
+            <View style={styles.episodeRow}>
+                <View style={styles.epBadge}>
+                    <Text style={styles.epBadgeText}>{item.episodeNumber || 0}</Text>
+                </View>
+
+                <View style={styles.episodeInfo}>
+                    <Text style={styles.episodeTitle}>Episode {item.episodeNumber || 0}</Text>
+                    <Text style={styles.episodeSize}>{formatFileSize(item.fileSize || 0)}</Text>
+                </View>
+
+                <Pressable
+                    style={styles.actionButton}
+                    onPress={() => handleShareEpisode(item)}
+                >
+                    <Ionicons name="share-outline" size={20} color={colors.textSecondary} />
+                </Pressable>
+
+                <Pressable
+                    style={styles.actionButton}
+                    onPress={() => handleDeleteEpisode(item)}
+                >
+                    <Ionicons name="trash-outline" size={20} color={colors.error} />
+                </Pressable>
             </View>
-
-            {/* Episode Info */}
-            <View style={styles.episodeInfo}>
-                <Text style={styles.episodeTitle}>Episode {item.episodeNumber}</Text>
-                <Text style={styles.episodeSize}>{formatFileSize(item.fileSize)}</Text>
-            </View>
-
-            {/* Share Button */}
-            <Pressable
-                style={styles.actionButton}
-                onPress={() => handleShareEpisode(item)}
-            >
-                <Ionicons name="share-outline" size={20} color={colors.textSecondary} />
-            </Pressable>
-
-            {/* Delete Button */}
-            <Pressable
-                style={styles.actionButton}
-                onPress={() => handleDeleteEpisode(item)}
-            >
-                <Ionicons name="trash-outline" size={20} color={colors.error} />
-            </Pressable>
-        </View>
-    );
+        );
+    };
 
     // ─── Web fallback ───
     if (Platform.OS === 'web') {
@@ -215,21 +230,22 @@ export default function DownloadsScreen() {
         );
     }
 
-    return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-            {/* Header */}
-            <View style={styles.header}>
-                {viewMode === 'episodes' && selectedAnime ? (
+    // ─── Episodes view ───
+    if (viewMode === 'episodes' && selectedAnime) {
+        const episodes = selectedAnime.episodes || [];
+        return (
+            <View style={[styles.container, { paddingTop: insets.top }]}>
+                <View style={styles.header}>
                     <View style={styles.episodesHeader}>
                         <Pressable onPress={handleBackToFolders} style={styles.backButton}>
                             <Ionicons name="arrow-back" size={24} color={colors.text} />
                         </Pressable>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.headerTitle} numberOfLines={1}>
-                                {selectedAnime.animeName}
+                                {selectedAnime.animeName || 'Unknown'}
                             </Text>
                             <Text style={styles.headerSubtitle}>
-                                {selectedAnime.episodes.length} episodes · {formatFileSize(selectedAnime.totalSize)}
+                                {episodes.length} episodes · {formatFileSize(selectedAnime.totalSize || 0)}
                             </Text>
                         </View>
                         <Pressable
@@ -239,48 +255,58 @@ export default function DownloadsScreen() {
                             <Ionicons name="trash-outline" size={20} color={colors.error} />
                         </Pressable>
                     </View>
+                </View>
+
+                {episodes.length === 0 ? (
+                    <View style={styles.emptyState}>
+                        <Ionicons name="film-outline" size={64} color={colors.textTertiary} />
+                        <Text style={styles.emptyTitle}>No Episodes</Text>
+                        <Text style={styles.emptySubtitle}>This folder is empty.</Text>
+                    </View>
                 ) : (
-                    <>
-                        <Text style={styles.headerTitle}>Downloads</Text>
-                        {downloadedAnime.length > 0 && (
-                            <View style={styles.statsRow}>
-                                <View style={styles.statChip}>
-                                    <Ionicons name="folder-outline" size={14} color={colors.primary} />
-                                    <Text style={styles.statText}>{downloadedAnime.length} anime</Text>
-                                </View>
-                                <View style={styles.statChip}>
-                                    <Ionicons name="film-outline" size={14} color={colors.primary} />
-                                    <Text style={styles.statText}>{totalEpisodes} episodes</Text>
-                                </View>
-                                <View style={styles.statChip}>
-                                    <Ionicons name="server-outline" size={14} color={colors.primary} />
-                                    <Text style={styles.statText}>{formatFileSize(totalSize)}</Text>
-                                </View>
-                            </View>
-                        )}
-                    </>
+                    <FlatList
+                        data={episodes}
+                        renderItem={renderEpisodeRow}
+                        keyExtractor={(item, index) => item?.fileUri || `ep-${index}`}
+                        contentContainerStyle={[
+                            styles.episodeListContent,
+                            { paddingBottom: insets.bottom + 100 },
+                        ]}
+                        showsVerticalScrollIndicator={false}
+                    />
+                )}
+            </View>
+        );
+    }
+
+    // ─── Folders view ───
+    return (
+        <View style={[styles.container, { paddingTop: insets.top }]}>
+            <View style={styles.header}>
+                <Text style={styles.headerTitle}>Downloads</Text>
+                {downloadedAnime.length > 0 && (
+                    <View style={styles.statsRow}>
+                        <View style={styles.statChip}>
+                            <Ionicons name="folder-outline" size={14} color={colors.primary} />
+                            <Text style={styles.statText}>{downloadedAnime.length} anime</Text>
+                        </View>
+                        <View style={styles.statChip}>
+                            <Ionicons name="film-outline" size={14} color={colors.primary} />
+                            <Text style={styles.statText}>{totalEpisodes} episodes</Text>
+                        </View>
+                        <View style={styles.statChip}>
+                            <Ionicons name="server-outline" size={14} color={colors.primary} />
+                            <Text style={styles.statText}>{formatFileSize(totalSize)}</Text>
+                        </View>
+                    </View>
                 )}
             </View>
 
-            {/* Content */}
             {loading ? (
                 <View style={styles.emptyState}>
                     <Text style={styles.emptySubtitle}>Scanning downloads...</Text>
                 </View>
-            ) : viewMode === 'episodes' && selectedAnime ? (
-                /* Episode List View */
-                <FlatList
-                    data={selectedAnime.episodes}
-                    renderItem={renderEpisodeRow}
-                    keyExtractor={item => item.fileUri}
-                    contentContainerStyle={[
-                        styles.episodeListContent,
-                        { paddingBottom: insets.bottom + 100 },
-                    ]}
-                    showsVerticalScrollIndicator={false}
-                />
             ) : downloadedAnime.length === 0 ? (
-                /* Empty State */
                 <View style={styles.emptyState}>
                     <Ionicons name="cloud-download-outline" size={64} color={colors.textTertiary} />
                     <Text style={styles.emptyTitle}>No Downloads</Text>
@@ -289,11 +315,10 @@ export default function DownloadsScreen() {
                     </Text>
                 </View>
             ) : (
-                /* Folder Grid */
                 <FlatList
                     data={downloadedAnime}
                     renderItem={renderAnimeFolder}
-                    keyExtractor={item => item.folderName}
+                    keyExtractor={(item, index) => item?.folderName || `folder-${index}`}
                     contentContainerStyle={[
                         styles.gridContent,
                         { paddingBottom: insets.bottom + 100 },

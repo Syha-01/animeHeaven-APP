@@ -65,13 +65,11 @@ export async function ensureAnimeDir(animeName: string): Promise<string | null> 
     if (!base || !animeDir) return null;
 
     try {
-        // Ensure root folder exists
         const baseInfo = await LegacyFileSystem.getInfoAsync(base);
         if (!baseInfo.exists) {
             await LegacyFileSystem.makeDirectoryAsync(base, { intermediates: true });
         }
 
-        // Ensure anime folder exists
         const animeInfo = await LegacyFileSystem.getInfoAsync(animeDir);
         if (!animeInfo.exists) {
             await LegacyFileSystem.makeDirectoryAsync(animeDir, { intermediates: true });
@@ -100,7 +98,65 @@ export interface DownloadedAnime {
 }
 
 /**
- * Scans the AnimeHeaven directory and returns all downloaded anime and their episodes.
+ * Reads episodes from a single anime folder.
+ */
+async function scanAnimeFolder(folderUri: string, folderName: string): Promise<DownloadedAnime | null> {
+    if (!LegacyFileSystem) return null;
+
+    try {
+        const files: string[] = await LegacyFileSystem.readDirectoryAsync(folderUri);
+        const episodes: DownloadedEpisode[] = [];
+        let totalSize = 0;
+
+        for (const fileName of files) {
+            if (!fileName.endsWith('.mp4')) continue;
+
+            const fileUri = `${folderUri}${fileName}`;
+
+            // Get file size safely — don't crash if it fails
+            let fileSize = 0;
+            try {
+                const fileInfo = await LegacyFileSystem.getInfoAsync(fileUri);
+                fileSize = fileInfo?.size || 0;
+            } catch {
+                // File info failed, use 0 size
+            }
+
+            // Extract episode number: Episode_1.mp4 → 1
+            const match = fileName.match(/Episode_(\d+)/);
+            const episodeNumber = match ? parseInt(match[1], 10) : 0;
+
+            episodes.push({
+                episodeNumber,
+                fileName,
+                fileUri,
+                fileSize,
+            });
+
+            totalSize += fileSize;
+        }
+
+        if (episodes.length === 0) return null;
+
+        episodes.sort((a, b) => a.episodeNumber - b.episodeNumber);
+
+        return {
+            animeName: folderName.replace(/_/g, ' '),
+            folderName,
+            folderUri,
+            episodes,
+            totalSize,
+        };
+    } catch (error) {
+        console.error(`Failed to scan folder ${folderName}:`, error);
+        return null;
+    }
+}
+
+/**
+ * Scans the AnimeHeaven directory and returns all downloaded anime.
+ * Only reads folder names at the top level (fast).
+ * Episode details are loaded lazily when a folder is opened.
  */
 export async function getDownloadedAnime(): Promise<DownloadedAnime[]> {
     if (!LegacyFileSystem) return [];
@@ -112,60 +168,39 @@ export async function getDownloadedAnime(): Promise<DownloadedAnime[]> {
         const baseInfo = await LegacyFileSystem.getInfoAsync(base);
         if (!baseInfo.exists) return [];
 
-        const animeFolders = await LegacyFileSystem.readDirectoryAsync(base);
+        const entries: string[] = await LegacyFileSystem.readDirectoryAsync(base);
         const results: DownloadedAnime[] = [];
 
-        for (const folderName of animeFolders) {
+        for (const folderName of entries) {
             const folderUri = `${base}${folderName}/`;
-            const folderInfo = await LegacyFileSystem.getInfoAsync(folderUri);
 
-            if (!folderInfo.isDirectory) continue;
-
-            const files = await LegacyFileSystem.readDirectoryAsync(folderUri);
-            const episodes: DownloadedEpisode[] = [];
-            let totalSize = 0;
-
-            for (const fileName of files) {
-                if (!fileName.endsWith('.mp4')) continue;
-
-                const fileUri = `${folderUri}${fileName}`;
-                const fileInfo = await LegacyFileSystem.getInfoAsync(fileUri, { size: true });
-
-                // Extract episode number from filename: Episode_1.mp4 → 1
-                const match = fileName.match(/Episode_(\d+)/);
-                const episodeNumber = match ? parseInt(match[1], 10) : 0;
-
-                episodes.push({
-                    episodeNumber,
-                    fileName,
-                    fileUri,
-                    fileSize: fileInfo.size || 0,
-                });
-
-                totalSize += fileInfo.size || 0;
+            // Check if it's a directory by trying to read it
+            try {
+                const info = await LegacyFileSystem.getInfoAsync(folderUri);
+                if (!info.exists || info.isDirectory === false) continue;
+            } catch {
+                continue;
             }
 
-            if (episodes.length > 0) {
-                // Sort episodes by number
-                episodes.sort((a, b) => a.episodeNumber - b.episodeNumber);
-
-                results.push({
-                    animeName: folderName.replace(/_/g, ' '),
-                    folderName,
-                    folderUri,
-                    episodes,
-                    totalSize,
-                });
+            const anime = await scanAnimeFolder(folderUri, folderName);
+            if (anime) {
+                results.push(anime);
             }
         }
 
-        // Sort by anime name
         results.sort((a, b) => a.animeName.localeCompare(b.animeName));
         return results;
     } catch (error) {
         console.error('Failed to scan downloads:', error);
         return [];
     }
+}
+
+/**
+ * Re-scans a single anime folder to get fresh episode data.
+ */
+export async function refreshAnimeFolder(folderUri: string, folderName: string): Promise<DownloadedAnime | null> {
+    return scanAnimeFolder(folderUri, folderName);
 }
 
 /**
@@ -201,6 +236,7 @@ export async function deleteAnimeFolder(folderUri: string): Promise<boolean> {
  */
 export function formatFileSize(bytes: number): string {
     if (bytes === 0) return '0 B';
+    if (!bytes || isNaN(bytes)) return '—';
     const units = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(1024));
     return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;

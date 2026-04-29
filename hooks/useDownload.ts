@@ -81,7 +81,7 @@ export function useDownload() {
 
         try {
             // 1. Get the download URL from the API
-            const downloadUrl = await apiClient.getDownloadUrl(episodeId);
+            let downloadUrl = await apiClient.getDownloadUrl(episodeId);
 
             if (!downloadUrl) {
                 updateDownload(episodeId, {
@@ -92,6 +92,11 @@ export function useDownload() {
                     Alert.alert('Download Unavailable', 'No download link was found for this episode.');
                 }
                 return;
+            }
+
+            // Ensure the URL has a proper scheme
+            if (!downloadUrl.startsWith('http')) {
+                downloadUrl = 'https://animeheaven.me/' + downloadUrl.replace(/^\//, '');
             }
 
             // 2. Platform-specific download

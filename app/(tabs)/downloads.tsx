@@ -265,6 +265,7 @@ export default function DownloadsScreen() {
                     </View>
                 ) : (
                     <FlatList
+                        key="episode-list"
                         data={episodes}
                         renderItem={renderEpisodeRow}
                         keyExtractor={(item, index) => item?.fileUri || `ep-${index}`}
@@ -316,6 +317,7 @@ export default function DownloadsScreen() {
                 </View>
             ) : (
                 <FlatList
+                    key="folder-grid"
                     data={downloadedAnime}
                     renderItem={renderAnimeFolder}
                     keyExtractor={(item, index) => item?.folderName || `folder-${index}`}

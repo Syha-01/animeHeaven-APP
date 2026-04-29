@@ -172,9 +172,27 @@ export default function SettingsScreen() {
                             <View style={styles.changelogItem}>
                                 <View style={styles.changelogDot} />
                                 <View style={{ flex: 1 }}>
-                                    <Text style={styles.changelogTitle}>Update Reverted</Text>
+                                    <Text style={styles.changelogTitle}>Episode Downloads</Text>
                                     <Text style={styles.changelogDescription}>
-                                        The previous update has been reverted successfully.
+                                        Download episodes directly to your device. Each episode now has a dedicated download button in the episode list and on the watch screen.
+                                    </Text>
+                                </View>
+                            </View>
+                            <View style={styles.changelogItem}>
+                                <View style={styles.changelogDot} />
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.changelogTitle}>Download Fix</Text>
+                                    <Text style={styles.changelogDescription}>
+                                        Fixed an issue where downloads would fail with an invalid URL error. The download link extraction has been updated to match the current site structure.
+                                    </Text>
+                                </View>
+                            </View>
+                            <View style={styles.changelogItem}>
+                                <View style={styles.changelogDot} />
+                                <View style={{ flex: 1 }}>
+                                    <Text style={styles.changelogTitle}>Redesigned Episode List</Text>
+                                    <Text style={styles.changelogDescription}>
+                                        Episodes are now displayed in a cleaner list layout with play and download buttons, progress bars, and watch status indicators.
                                     </Text>
                                 </View>
                             </View>

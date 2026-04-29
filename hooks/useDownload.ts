@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import { apiClient } from '../api/client';
+import { ensureAnimeDir, getEpisodeFilePath } from '../utils/downloadStorage';
 
 // Conditionally import the legacy expo-file-system API (not available on web)
 let LegacyFileSystem: any = null;
@@ -29,18 +30,6 @@ export interface DownloadState {
     status: DownloadStatus;
     progress: number; // 0 to 1
     error: string | null;
-}
-
-/**
- * Sanitizes a filename by removing or replacing characters
- * that are invalid on common filesystems.
- */
-function sanitizeFilename(name: string): string {
-    return name
-        .replace(/[/\\:*?"<>|]/g, '_')
-        .replace(/\s+/g, '_')
-        .replace(/_+/g, '_')
-        .trim();
 }
 
 /**
@@ -118,8 +107,20 @@ export function useDownload() {
                 return;
             }
 
-            const fileName = sanitizeFilename(`${animeName}_Ep${episodeNumber}.mp4`);
-            const fileUri = `${LegacyFileSystem.documentDirectory}${fileName}`;
+            // Create organized folder: AnimeHeaven/{AnimeName}/Episode_N.mp4
+            const animeDir = await ensureAnimeDir(animeName);
+            if (!animeDir) {
+                updateDownload(episodeId, { status: 'error', error: 'Failed to create download folder' });
+                return;
+            }
+
+            const fileUri = getEpisodeFilePath(animeName, episodeNumber);
+            if (!fileUri) {
+                updateDownload(episodeId, { status: 'error', error: 'Failed to determine file path' });
+                return;
+            }
+
+            const fileName = `Episode_${episodeNumber}.mp4`;
 
             updateDownload(episodeId, { status: 'downloading', progress: 0, error: null });
 

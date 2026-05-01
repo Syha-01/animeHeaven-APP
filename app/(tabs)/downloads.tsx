@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
     Alert,
     FlatList,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { borderRadius, colors, spacing, typography } from '../../theme';
 import {
     deleteAnimeFolder,
@@ -38,6 +39,14 @@ export default function DownloadsScreen() {
     const [loading, setLoading] = useState(true);
     const [selectedAnime, setSelectedAnime] = useState<DownloadedAnime | null>(null);
     const [viewMode, setViewMode] = useState<'folders' | 'episodes'>('folders');
+    const [showSaveTip, setShowSaveTip] = useState(true);
+
+    // Load tip dismissal state
+    useEffect(() => {
+        AsyncStorage.getItem('hideSaveToDeviceTip').then(val => {
+            if (val === 'true') setShowSaveTip(false);
+        });
+    }, []);
 
     const loadDownloads = useCallback(async () => {
         setLoading(true);
@@ -120,16 +129,27 @@ export default function DownloadsScreen() {
         );
     };
 
-    const handleShareEpisode = async (episode: DownloadedEpisode) => {
+    const handleSaveToDevice = async (episode: DownloadedEpisode) => {
         try {
             if (Sharing && await Sharing.isAvailableAsync()) {
-                await Sharing.shareAsync(episode.fileUri);
+                await Sharing.shareAsync(episode.fileUri, {
+                    mimeType: 'video/mp4',
+                    dialogTitle: `Save Episode ${episode.episodeNumber} to your device`,
+                });
             } else {
-                Alert.alert('Sharing Unavailable', 'Sharing is not available on this device.');
+                Alert.alert(
+                    'Save Unavailable',
+                    'Saving to external storage is not available on this device.',
+                );
             }
         } catch (error) {
-            console.error('Share failed:', error);
+            console.error('Save to device failed:', error);
         }
+    };
+
+    const dismissSaveTip = async () => {
+        setShowSaveTip(false);
+        await AsyncStorage.setItem('hideSaveToDeviceTip', 'true');
     };
 
     const handleAnimePress = async (anime: DownloadedAnime) => {
@@ -218,10 +238,10 @@ export default function DownloadsScreen() {
                 </Pressable>
 
                 <Pressable
-                    style={styles.actionButton}
-                    onPress={() => handleShareEpisode(item)}
+                    style={[styles.actionButton, styles.saveButton]}
+                    onPress={() => handleSaveToDevice(item)}
                 >
-                    <Ionicons name="share-outline" size={20} color={colors.textSecondary} />
+                    <Ionicons name="save-outline" size={18} color={colors.info} />
                 </Pressable>
 
                 <Pressable
@@ -296,6 +316,19 @@ export default function DownloadsScreen() {
                             { paddingBottom: insets.bottom + 100 },
                         ]}
                         showsVerticalScrollIndicator={false}
+                        ListHeaderComponent={
+                            showSaveTip ? (
+                                <View style={styles.tipBanner}>
+                                    <Ionicons name="information-circle" size={18} color={colors.info} />
+                                    <Text style={styles.tipText}>
+                                        Tap the <Ionicons name="save-outline" size={13} color={colors.info} /> icon to save episodes to your Downloads or Files app.
+                                    </Text>
+                                    <Pressable onPress={dismissSaveTip} hitSlop={8}>
+                                        <Ionicons name="close" size={16} color={colors.textTertiary} />
+                                    </Pressable>
+                                </View>
+                            ) : null
+                        }
                     />
                 )}
             </View>
@@ -527,6 +560,26 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         marginLeft: spacing.xs,
+    },
+    saveButton: {
+        backgroundColor: 'rgba(59, 130, 246, 0.12)',
+    },
+    tipBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(59, 130, 246, 0.08)',
+        borderRadius: borderRadius.md,
+        padding: spacing.sm,
+        marginBottom: spacing.md,
+        gap: spacing.xs,
+        borderWidth: 1,
+        borderColor: 'rgba(59, 130, 246, 0.15)',
+    },
+    tipText: {
+        flex: 1,
+        color: colors.textSecondary,
+        fontSize: typography.fontSize.xs,
+        lineHeight: 16,
     },
     // ─── Empty State ───
     emptyState: {

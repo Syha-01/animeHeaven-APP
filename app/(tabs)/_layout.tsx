@@ -1,6 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
+import * as ScreenOrientation from "expo-screen-orientation";
+import React, { useEffect } from "react";
 import { Platform, StyleSheet, View } from "react-native";
 import { colors } from "../../theme";
 
@@ -20,6 +22,19 @@ function TabIcon({ name, color, focused }: TabIconProps) {
 }
 
 export default function TabLayout() {
+    // Lock portrait on all tab screens; unlocks when navigating away
+    // (e.g., watch screen manages its own orientation)
+    useEffect(() => {
+        if (Platform.OS !== "web") {
+            ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+        }
+        return () => {
+            if (Platform.OS !== "web") {
+                ScreenOrientation.unlockAsync();
+            }
+        };
+    }, []);
+
     return (
         <Tabs
             screenOptions={{

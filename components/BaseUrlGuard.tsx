@@ -13,9 +13,11 @@ export function BaseUrlGuard({ children }: { children: React.ReactNode }) {
 
         const segmentsList = segments as string[];
         const inSettingsGroup = segmentsList.length > 1 && segmentsList[0] === "(tabs)" && segmentsList[1] === "settings";
+        const inDownloadsGroup = segmentsList.length > 1 && segmentsList[0] === "(tabs)" && segmentsList[1] === "downloads";
+        const inWatchGroup = segmentsList.length > 0 && segmentsList[0] === "watch";
 
-        if (!isValidConnection && !inSettingsGroup) {
-            // If connection is invalid and we aren't already in settings, go there
+        if (!isValidConnection && !inSettingsGroup && !inDownloadsGroup && !inWatchGroup) {
+            // If connection is invalid and we aren't in settings, downloads, or watch, go to settings
             // We use replace to prevent going back to a broken state
             router.replace("/(tabs)/settings");
         }

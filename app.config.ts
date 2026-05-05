@@ -55,7 +55,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
                     },
                 },
             ],
-
+            'expo-web-browser',
         ],
         experiments: {
             typedRoutes: true,

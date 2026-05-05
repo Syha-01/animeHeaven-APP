@@ -58,5 +58,5 @@ export const NativeVideo = forwardRef((props: any, ref) => {
         }
     });
 
-    return <VideoView player={player} style={style} contentFit="contain" nativeControls={false} />;
+    return <VideoView player={player} style={style} contentFit="contain" nativeControls={false} pointerEvents="none" />;
 });

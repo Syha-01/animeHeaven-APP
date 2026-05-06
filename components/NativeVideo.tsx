@@ -21,6 +21,19 @@ export const NativeVideo = forwardRef((props: any, ref) => {
         }
     }));
 
+    // Clean up: pause player on unmount to stop lingering playback
+    useEffect(() => {
+        return () => {
+            try {
+                if (player.playing) {
+                    player.pause();
+                }
+            } catch (e) {
+                // Player may already be released
+            }
+        };
+    }, [player]);
+
     useEffect(() => {
         if (shouldPlay && player.status === 'readyToPlay') {
             player.play();
@@ -58,5 +71,5 @@ export const NativeVideo = forwardRef((props: any, ref) => {
         }
     });
 
-    return <VideoView player={player} style={style} contentFit="contain" nativeControls={false} pointerEvents="none" />;
+    return <VideoView player={player} style={style} contentFit="contain" nativeControls={false} />;
 });

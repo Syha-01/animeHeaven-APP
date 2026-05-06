@@ -22,7 +22,7 @@ import { borderRadius, colors, spacing, typography } from '../../theme';
 
 export default function SettingsScreen() {
     const insets = useSafeAreaInsets();
-    const { baseUrl, setBaseUrl} = useUser();
+    const { baseUrl, setBaseUrl } = useUser();
     const [urlInput, setUrlInput] = useState(baseUrl || '');
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -172,9 +172,9 @@ export default function SettingsScreen() {
                             <View style={styles.changelogItem}>
                                 <View style={styles.changelogDot} />
                                 <View style={{ flex: 1 }}>
-                                    <Text style={styles.changelogTitle}>Episode Downloads</Text>
+                                    <Text style={styles.changelogTitle}>Fixed player when moving to another anime</Text>
                                     <Text style={styles.changelogDescription}>
-                                        Download episodes directly to your device. Each episode now has a dedicated download button in the episode list and on the watch screen.
+                                        Player now stops playing when you move to another anime
                                     </Text>
                                 </View>
                             </View>

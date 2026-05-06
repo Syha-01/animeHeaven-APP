@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NativeVideo } from '../../components/NativeVideo';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -76,7 +76,15 @@ export default function WatchScreen() {
     const [animeName, setAnimeName] = useState<string>('');
 
     // Playback State
-    const [isPlaying, setIsPlaying] = useState(true);
+    const [isPlaying, setIsPlayingState] = useState(true);
+    const isPlayingRef = useRef(true);
+    const setIsPlaying = (val: boolean | ((prev: boolean) => boolean)) => {
+        setIsPlayingState((prev) => {
+            const next = typeof val === 'function' ? val(prev) : val;
+            isPlayingRef.current = next;
+            return next;
+        });
+    };
     const [isFullscreen, setIsFullscreen] = useState(startFullscreen === 'true');
     const [showControls, setShowControls] = useState(true);
     const [progress, setProgress] = useState(0);
@@ -214,7 +222,7 @@ export default function WatchScreen() {
             clearTimeout(controlsTimeout.current);
         }
         controlsTimeout.current = setTimeout(() => {
-            if (isPlaying) {
+            if (isPlayingRef.current) {
                 setShowControls(false);
             }
         }, 3000);
@@ -513,6 +521,26 @@ export default function WatchScreen() {
             deactivateKeepAwake();
         };
     }, [isPlaying]);
+
+    // Pause video when screen loses focus (e.g. navigating to anime details)
+    const wasPlayingBeforeBlur = useRef<boolean>(false);
+    useFocusEffect(
+        useCallback(() => {
+            // Screen gained focus — resume if it was playing before
+            if (wasPlayingBeforeBlur.current) {
+                setIsPlaying(true);
+                wasPlayingBeforeBlur.current = false;
+            }
+
+            return () => {
+                // Screen lost focus — pause playback
+                if (isPlayingRef.current) {
+                    wasPlayingBeforeBlur.current = true;
+                    setIsPlaying(false);
+                }
+            };
+        }, [])
+    );
 
     // Handle Hardware Back Button (Android)
     useEffect(() => {
@@ -1166,11 +1194,18 @@ export default function WatchScreen() {
         }
     };
 
+    const renderTouchLayer = () => (
+        <Pressable
+            style={styles.touchInterceptLayer}
+            onPress={handlePlayerTap}
+        />
+    );
+
     const renderControlsLayer = () => {
         if (!showControls) return null;
 
         return (
-            <View style={styles.controlsOverlay}>
+            <View style={styles.controlsOverlay} pointerEvents="box-none">
                 <View style={[styles.topBar, { paddingTop: isFullscreen ? (insets.top || 10) : 0 }]}>
                     <Pressable style={styles.iconButton} onPress={handleBack}>
                         <Ionicons name="arrow-back" size={28} color="#FFF" />
@@ -1195,7 +1230,7 @@ export default function WatchScreen() {
                     </View>
                 </View>
 
-                <View style={styles.centerControls}>
+                <View style={styles.centerControls} pointerEvents="none">
                     {isBuffering && (
                         <ActivityIndicator size="large" color={colors.primary} />
                     )}
@@ -1469,17 +1504,17 @@ export default function WatchScreen() {
             <Stack.Screen options={{ headerShown: false }} />
             <StatusBar hidden={true} />
 
-            <Pressable
+            <View
                 style={[styles.videoContainer, isFullscreen && styles.fullscreenContainer]}
-                onPress={handlePlayerTap}
             >
                 {renderVideoLayer()}
+                {renderTouchLayer()}
                 {renderGestureIndicator()}
                 {renderControlsLayer()}
                 {renderPersistentOverlay()}
                 {renderAutoPlayOverlay()}
                 {renderSettingsMenu()}
-            </Pressable>
+            </View>
 
             {!isFullscreen && (
                 <ScrollView style={styles.scrollContent}>
@@ -1698,6 +1733,10 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         zIndex: 20,
         pointerEvents: 'box-none',
+    },
+    touchInterceptLayer: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 5,
     },
     controlsOverlay: {
         ...StyleSheet.absoluteFillObject,
